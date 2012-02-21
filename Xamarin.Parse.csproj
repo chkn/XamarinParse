@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{D41D9619-C1A1-4DEF-B596-13D20F6272DB}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Xamarin.Parse</RootNamespace>
+    <AssemblyName>Xamarin.Parse</AssemblyName>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Compile Include="Parse.cs" />
+    <Compile Include="Json\JsonReader.cs" />
+    <Compile Include="Json\JsonAdapter.cs" />
+    <Compile Include="ParseObject.cs" />
+    <Compile Include="Json\JsonWriter.cs" />
+    <Compile Include="ParseUser.cs" />
+    <Compile Include="ParseQuery.cs" />
+    <Compile Include="ParseQueryProvider.cs" />
+    <Compile Include="QueryTranslator.cs" />
+    <Compile Include="ExpressionVisitor.cs" />
+    <Compile Include="ParseException.cs" />
+    <Compile Include="ParseObjectAdapter.cs" />
+    <Compile Include="Counter.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Json\" />
+  </ItemGroup>
+</Project>
