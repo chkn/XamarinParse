@@ -9,15 +9,15 @@ namespace Xamarin.Parse.Json {
 
 	public abstract class JsonAdapter {
 
-		static Dictionary<Type,JsonAdapter> adapters = new Dictionary<Type, JsonAdapter> ();
+		static readonly Dictionary<Type,JsonAdapter> adapters = new Dictionary<Type, JsonAdapter> ();
 
 		// The default type that should be returned by GetValueType if there is no better alternative
 		public static readonly Type DefaultType = typeof (Dictionary<string,object>);
 
 		static JsonAdapter ()
 		{
-			Register (typeof (IDictionary<string,object>), DictionaryAdapter.Instance);
-			Register (typeof (IList), ListAdapter.Instance);
+			Register (typeof (IDictionary<string,object>), new DictionaryAdapter());
+			Register (typeof (IList), new ListAdapter());
 		}
 
 		public static void Register (Type type, JsonAdapter adapter)
@@ -48,9 +48,8 @@ namespace Xamarin.Parse.Json {
 	}
 
 	public class DictionaryAdapter : JsonAdapter {
-		public static readonly DictionaryAdapter Instance = new DictionaryAdapter ();
 
-		protected DictionaryAdapter ()
+		protected internal DictionaryAdapter ()
 		{
 		}
 
@@ -71,9 +70,8 @@ namespace Xamarin.Parse.Json {
 	}
 
 	public class ListAdapter : JsonAdapter {
-		public static readonly ListAdapter Instance = new ListAdapter ();
 
-		protected ListAdapter ()
+		protected internal ListAdapter ()
 		{
 		}
 
