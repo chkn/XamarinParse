@@ -10,11 +10,7 @@ using Xamarin.Parse.Json;
 namespace Xamarin.Parse {
 	public static class Parse {
 
-#if DEBUG
-		const string ENDPOINT = "http://localhost:8080";
-#else
 		const string ENDPOINT = "https://api.parse.com";
-#endif
 		const string API_VERSION = "1";
 
 		internal enum Verb {
@@ -24,13 +20,19 @@ namespace Xamarin.Parse {
 			DELETE
 		}
 
-		static string application_id, api_key;
+		static string endpoint, application_id, api_key;
 		static int timeout_msec;
 
 		static UTF8Encoding encoding;
 
 		public static void Initialize (string appId, string apiKey, TimeSpan requestTimeout)
 		{
+			Initialize (ENDPOINT, appId, apiKey, requestTimeout);
+		}
+
+		public static void Initialize (string endPoint, string appId, string apiKey, TimeSpan requestTimeout)
+		{
+			endpoint = endPoint;
 			application_id = appId;
 			api_key = apiKey;
 			timeout_msec = (int)requestTimeout.TotalMilliseconds;
@@ -53,7 +55,7 @@ namespace Xamarin.Parse {
 
 		internal static Task<HttpWebResponse> ApiCall (Verb verb, string path, string data = null)
 		{
-			var uri = string.Join ("/", ENDPOINT, API_VERSION, path);
+			var uri = string.Join ("/", endpoint, API_VERSION, path);
 			Console.WriteLine ("{0} {1} : {2}", verb, uri, data);
 
 			var req = (HttpWebRequest)WebRequest.Create (uri);

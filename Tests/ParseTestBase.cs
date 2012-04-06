@@ -11,7 +11,8 @@ using Xamarin.Parse;
 namespace Tests {
 	public abstract class ParseTestBase {
 
-		const string TEST_APP_ID = "TEST_APP_ID";
+		const string TEST_ENDPOINT = "http://localhost:8080";
+		const string TEST_APP_ID  = "TEST_APP_ID";
 		const string TEST_API_KEY = "TEST_API_KEY";
 		const string CONTENT_TYPE = "application/json";
 
@@ -29,7 +30,7 @@ namespace Tests {
 			server.Prefixes.Add ("http://*:8080/");
 			server.Start ();
 
-			Parse.Initialize (TEST_APP_ID, TEST_API_KEY, TimeSpan.FromSeconds (1));
+			Parse.Initialize (TEST_ENDPOINT, TEST_APP_ID, TEST_API_KEY, TimeSpan.FromSeconds (1));
 		}
 
 		protected void AssertRequest (string verb, string path, string body, int responseCode, string response)
