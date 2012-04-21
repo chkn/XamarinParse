@@ -22,16 +22,32 @@ namespace Xamarin.Parse.Json {
 		{
 			return JsonReader.Parse<T> (new StreamReader (stream));
 		}
+		
+		public static T ReadKey<T> (Stream stream, string key)
+		{
+			return JsonReader.ParseKey<T> (new StreamReader (stream), key);
+		}
 
 		public static T Parse<T> (string json)
 		{
 			return JsonReader.Parse<T> (new StringReader (json));
+		}
+		
+		public static T ParseKey<T> (string json, string key)
+		{
+			return JsonReader.ParseKey<T> (new StringReader (json), key);
 		}
 
 		public static T Parse<T> (TextReader json)
 		{
 			var jso = new JsonReader (json);
 			return (T)Convert.ChangeType (jso.Parse (typeof (T)), typeof (T));
+		}
+		
+		public static T ParseKey<T> (TextReader json, string key)
+		{
+			var jso = new JsonReader (json);
+			return (T)Convert.ChangeType (jso.ParseObjectForKey (typeof (T), key), typeof (T));
 		}
 
 		private JsonReader (TextReader input)
@@ -173,7 +189,7 @@ namespace Xamarin.Parse.Json {
 			var result = double.Parse (sb.ToString ());
 			var resultType = GetWorkingType (typeHint);
 
-			if (IsNumeric (resultType))
+			if (resultType != null && IsNumeric (resultType))
 				return Convert.ChangeType (result, resultType);
 
 			return result;
@@ -181,13 +197,15 @@ namespace Xamarin.Parse.Json {
 		
 		object ParseObject (Type typeHint)
 		{
+			object result = null;
 			var adapter = JsonAdapter.ForType (typeHint);
-			var next    = Peek ();
+			var next = Peek ();
 			if (next != '{')
 				Err ("expected object literal");
 			
 			Consume ();
-			var result = Activator.CreateInstance (typeHint);
+			if (typeHint != null)
+				result = Activator.CreateInstance (typeHint);
 
 			next = Peek ();
 			while (next != '}') {
@@ -195,8 +213,9 @@ namespace Xamarin.Parse.Json {
 				var key = ParseString ();
 				Consume (':');
 
-				var value = Parse (adapter.GetValueType (result, key));
-				adapter.SetKey (result, key, value);
+				var value = Parse (adapter == null ? null : adapter.GetValueType (result, key));
+				if (adapter != null)
+					adapter.SetKey (result, key, value);
 
 				next = Peek ();
 				if (next != '}')
@@ -206,23 +225,55 @@ namespace Xamarin.Parse.Json {
 			Consume ('}');
 			return result;
 		}
-		
+
+		object ParseObjectForKey (Type valueHint, string searchKey)
+		{
+			var next = Peek ();
+			if (next != '{')
+				Err ("expected object literal");
+			
+			Consume ();
+
+			next = Peek ();
+			while (next != '}') {
+
+				var key = ParseString ();
+				Consume (':');
+				
+				if (key == searchKey)
+					return Parse (valueHint);
+				else
+					Parse ((Type)null);
+
+					next = Peek ();
+				if (next != '}')
+					Consume (',');
+			}
+			
+			Consume ('}');
+			return null;
+		}
+
 		object ParseArray (Type typeHint)
 		{
+			object result = null;
 			var adapter = JsonAdapter.ForType (typeHint);
+
 			var next = Peek ();
 			if (next != '[')
 				Err ("expected array literal");
 			
 			Consume ();
-			var result = Activator.CreateInstance (GetWorkingType (typeHint));
+			if (typeHint != null)
+				result = Activator.CreateInstance (GetWorkingType (typeHint));
 
 			int i = 0;
 			next = Peek ();
 			while (next != ']') {
 			
-				var value = Parse (adapter.GetValueType (result, i.ToString ()));
-				adapter.SetKey (result, i.ToString (), value);
+				var value = Parse (adapter == null ? null : adapter.GetValueType (result, i.ToString ()));
+				if (adapter != null)
+					adapter.SetKey (result, i.ToString (), value);
 
 				i++;
 				next = Peek ();
@@ -231,9 +282,9 @@ namespace Xamarin.Parse.Json {
 			}
 			Consume (']');
 
-			if (typeHint.IsArray) {
+			if (typeHint != null && typeHint.IsArray) {
 				typeHint = typeHint.GetElementType ();
-				var list  = (IList)result;
+				var list = (IList)result;
 				var array = Array.CreateInstance (typeHint, i);
 				for (var j = 0; j < i; j++)
 					array.SetValue (Convert.ChangeType (list [j], typeHint), j);
@@ -323,9 +374,11 @@ namespace Xamarin.Parse.Json {
 
 		static Type GetWorkingType (Type typeHint)
 		{
+			if (typeHint == null)
+				return null;
 			if (typeHint.IsArray)
-				typeHint = typeof (ArrayList);
-			if (typeHint.IsGenericType && typeHint.GetGenericTypeDefinition () == typeof (Nullable<>))
+				typeHint = typeof(ArrayList);
+			if (typeHint.IsGenericType && typeHint.GetGenericTypeDefinition () == typeof(Nullable<>))
 				return typeHint.GetGenericArguments () [0];
 			return typeHint;
 		}

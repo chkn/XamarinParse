@@ -3,20 +3,22 @@ using System.Text;
 using System.Collections;
 using System.Collections.Generic;
 
+using Cirrus;
+
 namespace Xamarin.Parse.Json {
 
 	public static class JsonExtensions {
 
-		public static string ToJson (this object foo)
+		public static Future<string> ToJson (this object foo)
 		{
 			var writer = new JsonWriter ();
-			foo.ToJson (writer);
+			foo.ToJson (writer).Wait ();
 			return writer.ToString ();
 		}
 
-		public static void ToJson (this object foo, JsonWriter writer)
+		public static Future ToJson (this object foo, JsonWriter writer)
 		{
-			writer.WriteValue (foo);
+			return writer.WriteValue (foo);
 		}
 	}
 	public class JsonWriter {
@@ -38,28 +40,30 @@ namespace Xamarin.Parse.Json {
 			}
 		}
 
-		public void WriteObject (IEnumerable<KeyValuePair<string,object>> pairs)
+		public Future WriteObject (IEnumerable<KeyValuePair<string,object>> pairs)
 		{
 			WriteCommaIfNecessary ();
 			buffer.Append ('{');
 
 			foreach (var kv in pairs) {
 				WriteKey (kv.Key);
-				WriteValue (kv.Value);
+				WriteValue (kv.Value).Wait ();
 			}
 
 			buffer.Append ('}');
+			return Future.Fulfilled;
 		}
 
-		public void WriteArray (IEnumerable values)
+		public Future WriteArray (IEnumerable values)
 		{
 			WriteCommaIfNecessary ();
 			buffer.Append ('[');
 
 			foreach (var value in values)
-				WriteValue (value);
+				WriteValue (value).Wait ();
 
 			buffer.Append (']');
+			return Future.Fulfilled;
 		}
 
 		public void StartObject ()
@@ -99,7 +103,7 @@ namespace Xamarin.Parse.Json {
 			next_needs_comma = true;
 		}
 
-		public void WriteValue (object value)
+		public Future WriteValue (object value)
 		{
 			WriteCommaIfNecessary ();
 			if (value == null) {
@@ -113,9 +117,11 @@ namespace Xamarin.Parse.Json {
 				buffer.Append (value.ToString ().ToLowerInvariant ());
 
 			} else {
-				JsonAdapter.ForType (value.GetType ()).WriteJson (value, this);
+				return JsonAdapter.ForType (value.GetType ()).WriteJson (value, this);
+
 			}
 			next_needs_comma = true;
+			return Future.Fulfilled;
 		}
 
 		public void EndObject ()

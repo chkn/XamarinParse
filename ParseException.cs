@@ -3,12 +3,16 @@ using System;
 namespace Xamarin.Parse {
 
 	// An exception related to any type of Parse failure.
-	// FIXME: make an enum of the error codes, if we can figure their values out
 	public class ParseException : Exception {
 
-		internal ParseException (ParseErrorResponse resp)
+		public int ParseCode { get; protected set; }
+		public int HttpCode { get; protected set; }
+
+		internal ParseException (int httpStatus, ParseErrorResponse resp)
 			: base (resp.error)
 		{
+			this.ParseCode = resp.code;
+			this.HttpCode = httpStatus;
 		}
 	}
 

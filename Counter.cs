@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 
+using Cirrus;
 using Xamarin.Parse.Json;
 
 namespace Xamarin.Parse {
@@ -25,12 +26,11 @@ namespace Xamarin.Parse {
 
 		public static implicit operator TValue (Counter<TValue> c)
 		{
-			return c.value;
+			return (TValue)Convert.ChangeType (Convert.ToInt64 (c.value) + Convert.ToInt64 (c.delta), typeof (TValue));
 		}
 
 		public static Counter<TValue> FromObject (object valueInstance)
 		{
-			var result = valueInstance as Counter<TValue>;
 			return new Counter<TValue> ((TValue)Convert.ChangeType (valueInstance, typeof (TValue)));
 		}
 
@@ -55,14 +55,14 @@ namespace Xamarin.Parse {
 			return valueType;
 		}
 
-		public override void SetKey (object data, string key, object value)
+		public override Future SetKey (object data, string key, object value)
 		{
 			throw new NotSupportedException ();
 		}
 
-		public override void WriteJson (object data, JsonWriter writer)
+		public override Future WriteJson (object data, JsonWriter writer)
 		{
-
+			throw new NotSupportedException ();
 		}
 	}
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Collections.Generic;
 using NUnit.Framework;
@@ -6,17 +7,24 @@ using NUnit.Framework;
 using Xamarin.Parse.Json;
 
 [TestFixture]
-public class JsonTests {
+public class JsonTests : TestBase {
+	
+	// All tests that Wait() must be in try..finally with a TestComplete() in the finally block
+	
 	[Test]
 	public void TestWriteStrings ()
 	{
-		Assert.AreEqual ("foo".ToJson (), "\"foo\"");
-		Assert.AreEqual ("\"foo\\bbar\"", "foo\bbar".ToJson (), "\\b");
-		Assert.AreEqual ("\"foo\\fbar\"", "foo\fbar".ToJson (), "\\f");
-		Assert.AreEqual ("\"foo\\nbar\"", "foo\nbar".ToJson (), "\\n");
-		Assert.AreEqual ("\"foo\\rbar\"", "foo\rbar".ToJson (), "\\r");
-		Assert.AreEqual ("\"foo\\tbar\"", "foo\tbar".ToJson (), "\\t");
-		Assert.AreEqual ("\"foo\\\\bar\"", "foo\\bar".ToJson (), "\\");
+		try {
+			Assert.AreEqual ("\"foo\"", "foo".ToJson ().Wait ());
+			Assert.AreEqual ("\"foo\\bbar\"", "foo\bbar".ToJson ().Wait (), "\\b");
+			Assert.AreEqual ("\"foo\\fbar\"", "foo\fbar".ToJson ().Wait (), "\\f");
+			Assert.AreEqual ("\"foo\\nbar\"", "foo\nbar".ToJson ().Wait (), "\\n");
+			Assert.AreEqual ("\"foo\\rbar\"", "foo\rbar".ToJson ().Wait (), "\\r");
+			Assert.AreEqual ("\"foo\\tbar\"", "foo\tbar".ToJson ().Wait (), "\\t");
+			Assert.AreEqual ("\"foo\\\\bar\"", "foo\\bar".ToJson ().Wait (), "\\");
+		} finally {
+			TestComplete ();
+		}
 	}
 
 	[Test]
@@ -29,16 +37,21 @@ public class JsonTests {
 		AssertRead<string> ("foo\tbar", "\"foo\\tbar\"", "\\t");
 		AssertRead<string> ("foo\\bar", "\"foo\\\\bar\"", "\\");
 		AssertRead<string> ("foo\u005Cbar", "\"foo\\u005Cbar\"", "Unicode escape seq");
+		TestComplete ();
 	}
 
 	[Test]
 	public void TestWriteValueTypes ()
 	{
-		Assert.AreEqual ("true", true.ToJson ());
-		Assert.AreEqual ("false", false.ToJson ());
-		Assert.AreEqual ("10", 10.ToJson ());
-		Assert.AreEqual ("55.7", 55.7f.ToJson ());
-		Assert.AreEqual ("-5", (-5).ToJson ());
+		try {
+			Assert.AreEqual ("true", true.ToJson ().Wait ());
+			Assert.AreEqual ("false", false.ToJson ().Wait ());
+			Assert.AreEqual ("10", 10.ToJson ().Wait ());
+			Assert.AreEqual ("55.7", 55.7f.ToJson ().Wait ());
+			Assert.AreEqual ("-5", (-5).ToJson ().Wait ());
+		} finally {
+			TestComplete ();
+		}
 	}
 
 	[Test]
@@ -51,20 +64,25 @@ public class JsonTests {
 		AssertRead<double>(48.2d, "48.2", "48.2d");
 		AssertRead<int>   (-5, "-5", "-5");
 		AssertRead<long>  ((long)(13e7), "13e7", "13e7");
+		TestComplete ();
 	}
 
 	[Test]
 	public void TestWriteObjects ()
 	{
-		Assert.AreEqual ("{\"Foo\":\"bar\",\"Baz\":false,\"Xam\":{\"Nested\":10.5}}",
-		              new {  Foo  = "bar",   Baz = false,  Xam=new{ Nested = 10.5f } }.ToJson ());
-
-		Assert.AreEqual ("{\"Ten\":10,\"Hoopla\":true,\"Monkey\":\"Awesome\"}",
-			new Dictionary<string,object>() { { "Ten", 10 }, { "Hoopla", true }, { "Monkey", "Awesome" } }.ToJson ());
-
-		Assert.AreEqual ("[1,2,4,3]", new[] { 1, 2, 4, 3 }.ToJson ());
-		Assert.AreEqual ("[\"hello\",10,{\"hi\":5}]",
-			new List<object> () { "hello", 10, new { hi = 5 } }.ToJson ());
+		try {
+			Assert.AreEqual ("{\"Foo\":\"bar\",\"Baz\":false,\"Xam\":{\"Nested\":10.5}}",
+			              new {  Foo  = "bar",   Baz = false,  Xam=new{ Nested = 10.5f } }.ToJson ().Wait ());
+	
+			Assert.AreEqual ("{\"Ten\":10,\"Hoopla\":true,\"Monkey\":\"Awesome\"}",
+				new Dictionary<string,object>() { { "Ten", 10 }, { "Hoopla", true }, { "Monkey", "Awesome" } }.ToJson ().Wait ());
+	
+			Assert.AreEqual ("[1,2,4,3]", new[] { 1, 2, 4, 3 }.ToJson ().Wait ());
+			Assert.AreEqual ("[\"hello\",10,{\"hi\":5}]",
+				new List<object> () { "hello", 10, new { hi = 5 } }.ToJson ().Wait ());
+		} finally {
+			TestComplete ();
+		}
 	}
 
 	[Test]
@@ -73,7 +91,7 @@ public class JsonTests {
 		var dict = JsonReader.Parse<Dictionary<string,object>> ("{\"key1\":1,\"key2\":2}");
 		Assert.That (dict.Count == 2 && ((double)dict ["key1"]) == 1 && ((double)dict ["key2"]) == 2, "IDictionary");
 
-
+		TestComplete ();
 	}
 
 	static void AssertRead<T> (T expected, string json, string message)

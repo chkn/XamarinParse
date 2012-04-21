@@ -2,15 +2,15 @@ using System;
 using System.IO;
 using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 using System.Collections.Generic;
 
+using Cirrus;
 using Xamarin.Parse.Json;
 
 namespace Xamarin.Parse {
 	public static class Parse {
 
-		const string ENDPOINT = "https://api.parse.com";
+		public const string ENDPOINT = "https://api.parse.com";
 		const string API_VERSION = "1";
 
 		internal enum Verb {
@@ -24,15 +24,15 @@ namespace Xamarin.Parse {
 		static int timeout_msec;
 
 		static UTF8Encoding encoding;
+		
+		public static string Endpoint {
+			get { return endpoint; }
+			set { endpoint = value; }
+		}
 
 		public static void Initialize (string appId, string apiKey, TimeSpan requestTimeout)
 		{
-			Initialize (ENDPOINT, appId, apiKey, requestTimeout);
-		}
-
-		public static void Initialize (string endPoint, string appId, string apiKey, TimeSpan requestTimeout)
-		{
-			endpoint = endPoint;
+			endpoint = ENDPOINT;
 			application_id = appId;
 			api_key = apiKey;
 			timeout_msec = (int)requestTimeout.TotalMilliseconds;
@@ -53,9 +53,11 @@ namespace Xamarin.Parse {
 			return new ParseQuery<ParseObject> (new ParseQueryProvider (ParseObject.CLASSES_PATH + "/" + className));
 		}
 
-		internal static Task<HttpWebResponse> ApiCall (Verb verb, string path, string data = null)
+		internal static Future<HttpWebResponse> ApiCall (Verb verb, string path, string data = null)
 		{
 			var uri = string.Join ("/", endpoint, API_VERSION, path);
+			if (data != null && verb == Verb.GET)
+				uri += "?" + data;
 			Console.WriteLine ("{0} {1} : {2}", verb, uri, data);
 
 			var req = (HttpWebRequest)WebRequest.Create (uri);
@@ -67,41 +69,40 @@ namespace Xamarin.Parse {
 			req.Headers.Set ("X-Parse-Application-Id", application_id);
 			req.Headers.Set ("X-Parse-REST-API-Key", api_key);
 
-			return Task.Factory.FromAsync<Stream> (req.BeginGetRequestStream, req.EndGetRequestStream, null)
-				.ContinueWith (task => {
-					var reqStream = task.Result;
+			if (data != null && verb != Verb.GET) {
+				var dataBytes = encoding.GetBytes (data);
+				req.ContentLength = dataBytes.Length;
 
-					if (data != null) {
-						var dataBytes = encoding.GetBytes (data);
-						reqStream.Write (dataBytes, 0, dataBytes.Length);
-					}
-
+				using (var reqStream = Future<Stream>.FromApm (req.BeginGetRequestStream, req.EndGetRequestStream).Wait ()) {
+					reqStream.Write (dataBytes, 0, dataBytes.Length);
 					reqStream.Close ();
-					return Task.Factory.FromAsync<HttpWebResponse> (req.BeginGetResponse, iar => (HttpWebResponse)req.EndGetResponse (iar), null);
-				}).Unwrap ();
-		}
-
-		internal static Task<TResult> ApiCall<TResult> (Verb verb, string path, string data = null)
-		{
-			return ApiCall (verb, path, data).ContinueWith (task => {
-				ThrowIfNecessary (task);
-				return JsonReader.Read<TResult> (task.Result.GetResponseStream ());
-			});
-		}
-
-		internal static void ThrowIfNecessary (Task<HttpWebResponse> task)
-		{
-			try {
-				var statusCode = (int)task.Result.StatusCode;
-				if (statusCode >= 400)
-					throw new ParseException (JsonReader.Read<ParseErrorResponse> (task.Result.GetResponseStream ()));
-			} catch (AggregateException agg) {
-				var inner = agg.Flatten ().InnerExceptions;
-				if (inner.Count == 1 && inner [0] is WebException)
-					throw new ParseException (JsonReader.Read<ParseErrorResponse> (((WebException)inner [0]).Response.GetResponseStream ()));
-				else
-					throw;
+				}
 			}
+
+			try {
+				return Future<HttpWebResponse>.FromApm (req.BeginGetResponse, iar => (HttpWebResponse)req.EndGetResponse (iar)).Wait ();
+
+			} catch (WebException wex) {
+				ThrowIfNecessary (wex.Response as HttpWebResponse);
+				throw;
+			}
+		}
+
+		internal static Future<TResult> ApiCall<TResult> (Verb verb, string path, string data = null)
+		{
+			var response = ApiCall (verb, path, data).Wait ();
+			ThrowIfNecessary (response);
+			using (var stream = response.GetResponseStream ())
+				return JsonReader.Read<TResult> (stream);
+		}
+
+		internal static void ThrowIfNecessary (HttpWebResponse response)
+		{
+			if (response == null)
+				return;
+			var statusCode = (int)response.StatusCode;
+			if (statusCode >= 400)
+				throw new ParseException (statusCode, JsonReader.Read<ParseErrorResponse> (response.GetResponseStream ()));
 		}
 
 		public static string GetClassName (Type type)

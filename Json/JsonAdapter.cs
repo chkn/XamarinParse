@@ -5,29 +5,38 @@ using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 
+using Cirrus;
+using Xamarin.Parse.Util;
+
 namespace Xamarin.Parse.Json {
 
 	public abstract class JsonAdapter {
 
-		static readonly Dictionary<Type,JsonAdapter> adapters = new Dictionary<Type, JsonAdapter> ();
+		static readonly OrderedDictionary<Type,JsonAdapter> adapters = new OrderedDictionary<Type,JsonAdapter> ();
 
 		// The default type that should be returned by GetValueType if there is no better alternative
 		public static readonly Type DefaultType = typeof (Dictionary<string,object>);
 
 		static JsonAdapter ()
 		{
-			Register (typeof (IDictionary<string,object>), new DictionaryAdapter());
+#if MONOTOUCH
+			List<KeyValuePair<Type,JsonAdapter>> foo = null;
+#endif
 			Register (typeof (IList), new ListAdapter());
+			Register (typeof (IDictionary<string,object>), new DictionaryAdapter());
 		}
 
 		public static void Register (Type type, JsonAdapter adapter)
 		{
 			lock (adapters)
-				adapters [type] = adapter;
+				adapters.Insert (0, type, adapter);
 		}
 
 		public static JsonAdapter ForType (Type type)
 		{
+			if (type == null)
+				return null;
+
 			JsonAdapter adapter;
 			if (adapters.TryGetValue (type, out adapter))
 				return adapter;
@@ -42,9 +51,9 @@ namespace Xamarin.Parse.Json {
 			return adapter;
 		}
 
-		public abstract void SetKey (object data, string key, object value);
+		public abstract Future SetKey (object data, string key, object value);
 		public abstract Type GetValueType (object data, string key);
-		public abstract void WriteJson (object data, JsonWriter writer);
+		public abstract Future WriteJson (object data, JsonWriter writer);
 	}
 
 	public class DictionaryAdapter : JsonAdapter {
@@ -53,9 +62,10 @@ namespace Xamarin.Parse.Json {
 		{
 		}
 
-		public override void SetKey (object data, string key, object value)
+		public override Future SetKey (object data, string key, object value)
 		{
 			((IDictionary<string, object>)data) [key] = value;
+			return Future.Fulfilled;
 		}
 
 		public override Type GetValueType (object data, string key)
@@ -63,9 +73,9 @@ namespace Xamarin.Parse.Json {
 			return data.GetType ();
 		}
 
-		public override void WriteJson (object data, JsonWriter writer)
+		public override Future WriteJson (object data, JsonWriter writer)
 		{
-			writer.WriteObject ((IDictionary<string, object>)data);
+			return writer.WriteObject ((IDictionary<string, object>)data);
 		}
 	}
 
@@ -75,7 +85,7 @@ namespace Xamarin.Parse.Json {
 		{
 		}
 
-		public override void SetKey (object data, string key, object value)
+		public override Future SetKey (object data, string key, object value)
 		{
 			var list  = (IList)data;
 			var index = int.Parse (key);
@@ -86,6 +96,8 @@ namespace Xamarin.Parse.Json {
 				list [index] = value;
 			else
 				throw new IndexOutOfRangeException (key);
+			
+			return Future.Fulfilled;
 		}
 
 		public override Type GetValueType (object data, string key)
@@ -104,9 +116,9 @@ namespace Xamarin.Parse.Json {
 			return type;
 		}
 
-		public override void WriteJson (object data, JsonWriter writer)
+		public override Future WriteJson (object data, JsonWriter writer)
 		{
-			writer.WriteArray ((IList)data);
+			return writer.WriteArray ((IList)data);
 		}
 	}
 
@@ -117,19 +129,18 @@ namespace Xamarin.Parse.Json {
 		{
 		}
 
-		public override void SetKey (object data, string key, object value)
+		public override Future SetKey (object data, string key, object value)
 		{
 			var type = data.GetType ();
 			var prop = type.GetProperty (key);
 			if (prop != null) {
 				prop.SetValue (data, value, new object [0]);
-				return;
+				return Future.Fulfilled;
 			}
 			var field = type.GetField (key);
-			if (field != null) {
+			if (field != null)
 				field.SetValue (data, value);
-				return;
-			}
+			return Future.Fulfilled;
 		}
 
 		public override Type GetValueType (object data, string key)
@@ -146,7 +157,7 @@ namespace Xamarin.Parse.Json {
 			return JsonAdapter.DefaultType;
 		}
 
-		public override void WriteJson (object data, JsonWriter writer)
+		public override Future WriteJson (object data, JsonWriter writer)
 		{
 			var type = data.GetType ();
 			writer.StartObject ();
@@ -154,15 +165,16 @@ namespace Xamarin.Parse.Json {
 				if (prop.IsSpecialName)
 					continue;
 				writer.WriteKey (prop.Name);
-				writer.WriteValue (prop.GetValue (data, null));
+				writer.WriteValue (prop.GetValue (data, null)).Wait ();
 			}
 			foreach (var field in type.GetFields (BindingFlags.Public | BindingFlags.Instance)) {
 				if (field.IsSpecialName || field.IsNotSerialized)
 					continue;
 				writer.WriteKey (field.Name);
-				writer.WriteValue (field.GetValue (data));
+				writer.WriteValue (field.GetValue (data)).Wait ();
 			}
 			writer.EndObject ();
+			return Future.Fulfilled;
 		}
 	}
 }

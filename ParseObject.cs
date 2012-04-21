@@ -3,29 +3,37 @@ using System.Reflection;
 using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Threading.Tasks;
 using System.Collections.Generic;
 
+using Cirrus;
 using Xamarin.Parse.Json;
 
 namespace Xamarin.Parse {
-
+	
+	[AttributeUsage (AttributeTargets.Property)]
+	public class ParseKeyAttribute : Attribute {
+		public string Key { get; set; }
+		public ParseKeyAttribute () { }
+		public ParseKeyAttribute (string key) { this.Key = key; }
+	}
+	
 	// Subclassing:
-	//    If you want to add any C# properties that are saved to Parse,
-	//    use the this[] indexer syntax for get/set.
+	//    If you want to add any C# properties that are saved to Parse, either:
+	//      a. use the this[] indexer syntax for get/set OR
+	//      b. annotate your auto-generated properties with the ParseKeyAttribute
 	public class ParseObject : IDictionary<string,object>, INotifyPropertyChanged {
 
 		// the API path to normal parse objects
 		internal const string CLASSES_PATH = "classes";
-
-		public string Id {
+		
+		public string ObjectId {
 			get { return (string) this ["objectId"]; }
 			internal set {
 				lock (property_lock) {
 					properties ["objectId"] = value;
 					ClassPath += "/" + value;
 				}
-				FirePropertyChanged ("Id");
+				FirePropertyChanged ("ObjectId");
 			}
 		}
 		public DateTime CreateDate {
@@ -48,14 +56,20 @@ namespace Xamarin.Parse {
 		public event PropertyChangedEventHandler PropertyChanged;
 		public string ClassPath { get; private set; }
 
+		internal string pointerClassName;
+
 		internal object property_lock;
 		// ^ Must be locked on every access to either of the below:
 		internal Dictionary<string,object> properties;
 		internal HashSet<string> updated_properties;
-
+		internal Dictionary<string,PropertyInfo> property_keys;
+		
 		public ParseObject (string className)
 			: this (new[] { CLASSES_PATH, className })
 		{
+			if (className.StartsWith ("_"))
+				throw new ArgumentException ("Class names cannot start with '_'");
+			this.pointerClassName = className;
 		}
 
 		protected ParseObject (string [] apiPathParts)
@@ -64,6 +78,21 @@ namespace Xamarin.Parse {
 			this.property_lock = new object ();
 			this.properties = new Dictionary<string, object> ();
 			this.updated_properties = new HashSet<string> ();
+			
+			var type = GetType ();
+			if (type == typeof (ParseObject))
+				return;
+
+			foreach (var prop in type.GetProperties (BindingFlags.Public | BindingFlags.Instance)) {
+				var attr = prop.GetCustomAttributes (typeof (ParseKeyAttribute), true).Cast<ParseKeyAttribute> ().SingleOrDefault ();
+				if (attr == null)
+					continue;
+			
+				if (property_keys == null)
+					property_keys = new Dictionary<string, PropertyInfo> ();
+				
+				property_keys.Add (attr.Key ?? prop.Name, prop);
+			}
 		}
 
 		public void Add (KeyValuePair<string, object> item)
@@ -139,6 +168,10 @@ namespace Xamarin.Parse {
 
 						properties [key] = value;
 						updated_properties.Add (key);
+						
+						PropertyInfo prop;
+						if (property_keys != null && property_keys.TryGetValue (key, out prop))
+							prop.SetValue (this, value, null);
 						FirePropertyChanged (key);
 					}
 				}
@@ -176,29 +209,33 @@ namespace Xamarin.Parse {
 				return properties.TryGetValue (key, out value);
 		}
 
-		public Task Save () {
-			if (Id == null)
+		public Future Save () {
+			if (ObjectId == null)
 				return CallAndApply (Parse.Verb.POST); // create
 			else
 				return CallAndApply (Parse.Verb.PUT); // update
 		}
 
-		public Task Delete ()
+		public Future Delete ()
 		{
 			return CallAndApply (Parse.Verb.DELETE, false);
 		}
 
-		Task CallAndApply (Parse.Verb verb, bool sendData = true)
+		Future CallAndApply (Parse.Verb verb, bool sendData = true)
 		{
-			return Parse.ApiCall (verb, ClassPath, sendData? this.ToJson () : null).ContinueWith (task => {
-				Parse.ThrowIfNecessary (task);
-				var status = (int)task.Result.StatusCode;
-				if (status != 204 && status != 205) {
-					var dict = JsonReader.Read<Dictionary<string,object>> (task.Result.GetResponseStream ());
-					ParseObjectAdapter.Instance.Apply (this, dict);
-				}
-				task.Result.Close ();
-			});
+			var data = sendData? this.ToJson ().Wait () : null;
+			var response = Parse.ApiCall (verb, ClassPath, data).Wait ();
+			Parse.ThrowIfNecessary (response);
+
+			var status = (int)response.StatusCode;
+			if (status != 204 && status != 205) {
+				var dict = JsonReader.Read<Dictionary<string,object>> (response.GetResponseStream ());
+				Console.WriteLine ("Got dict: {0}", dict);
+				ParseObjectAdapter.Instance.Apply (this, dict);
+			}
+			response.Close ();
+			
+			return Future.Fulfilled;
 		}
 
 		void FirePropertyChanged (string propName)

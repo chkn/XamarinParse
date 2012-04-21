@@ -14,8 +14,7 @@ namespace Sample {
 			var testObject = new ParseObject ("TestObject");
 			testObject ["foo"] = "bar";
 			testObject ["baz"] = 10;
-			testObject.Save()
-				.Wait();
+			testObject.Save().Wait();
 		}
 	}
 }

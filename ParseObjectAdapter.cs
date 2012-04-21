@@ -1,25 +1,57 @@
 using System;
+using System.Reflection;
+using System.Threading;
 using System.Globalization;
 using System.Collections.Generic;
 
+using Cirrus;
 using Xamarin.Parse.Json;
 
 namespace Xamarin.Parse {
 
 	// This class does the marshaling to/from json
 	class ParseObjectAdapter : DictionaryAdapter {
-		public static new readonly ParseObjectAdapter Instance = new ParseObjectAdapter ();
+		public static readonly ParseObjectAdapter Instance = new ParseObjectAdapter ();
 
 		private ParseObjectAdapter ()
 		{
 		}
 
-		public override void WriteJson (object data, JsonWriter writer)
+		public override Type GetValueType (object data, string key)
+		{
+			PropertyInfo prop;
+			var po = (ParseObject)data;
+			if (po.property_keys != null && po.property_keys.TryGetValue (key, out prop))
+				return prop.PropertyType;
+			
+			return base.GetValueType (data, key);
+		}
+		
+		public override Future WriteJson (object data, JsonWriter writer)
 		{
 			var po = (ParseObject)data;
-			writer.StartObject ();
 
 			lock (po.property_lock) {
+				
+				// fold in our [ParseKey] properties
+				if (po.property_keys != null) {
+					foreach (var kv in po.property_keys) {
+						object dictValue = null;
+						po.properties.TryGetValue (kv.Key, out dictValue);
+						var propValue = kv.Value.GetValue (data, null);
+						if ((propValue != null && !propValue.Equals (dictValue)) ||
+						    (propValue == null && dictValue != null)) {
+							po.properties [kv.Key] = propValue;
+							po.updated_properties.Add (kv.Key);
+						}
+					}
+				}
+				
+				if (po.updated_properties.Count == 0)
+					return Future.Fulfilled;
+				
+				writer.StartObject ();
+		
 				foreach (var key in po.updated_properties) {
 					writer.WriteKey (key);
 
@@ -29,40 +61,57 @@ namespace Xamarin.Parse {
 					} else if (value is byte []) {
 						throw new NotImplementedException ("Write byte [] data");
 					} else if (value is ParseObject) {
-						throw new NotImplementedException ("Write pointer to ParseObject");
+						var obj = (ParseObject)value;
+						obj.Save ().Wait ();
+						writer.StartObject ();
+						writer.WriteKey ("__type");
+						writer.WriteString ("Pointer");
+						writer.WriteKey ("className");
+						writer.WriteString (obj.pointerClassName);
+						writer.WriteKey ("objectId");
+						writer.WriteString (obj.ObjectId);
+						writer.EndObject ();
 					} else {
-						writer.WriteValue (value);
+						writer.WriteValue (value).Wait ();
 					}
 				}
-			}
 
-			writer.EndObject ();
+				writer.EndObject ();			
+			}
+			
+			return Future.Fulfilled;
 		}
 
-		public override void SetKey (object data, string key, object value)
+		public override Future SetKey (object data, string key, object value)
 		{
-			var po = (ParseObject)data;
 			switch (key) {
 
 			// handle the special keys
-			case "objectId" : po.Id = (string)value; return;
-			case "createdAt": po.CreateDate = ParseDateTime ((string)value); return;
-			case "updatedAt": po.ModifiedDate = ParseDateTime ((string)value); return;
+			case "objectId" : ((ParseObject)data).ObjectId = (string)value; return Future.Fulfilled;
+			case "createdAt": ((ParseObject)data).CreateDate = ParseDateTime ((string)value); return Future.Fulfilled;
+			case "updatedAt": ((ParseObject)data).ModifiedDate = ParseDateTime ((string)value); return Future.Fulfilled;
 			}
 
 			// handle the special data types
-			if (!HandleParseType (data, key, value))
-				base.SetKey (data, key, value);
+			var parseObject = (ParseObject)data;
+			var parseValue = HandleParseType (data, key, value).Wait ();
+			base.SetKey (data, key, parseValue);
+
+			PropertyInfo prop;
+			if (parseObject.property_keys != null && parseObject.property_keys.TryGetValue (key, out prop))
+				prop.SetValue (parseObject, parseValue, null);
+
+			return Future.Fulfilled;
 		}
 
-		bool HandleParseType (object data, string key, object value)
+		Future<object> HandleParseType (object data, string key, object value)
 		{
 			object typeObj;
 			string type;
 
 			var hash = value as IDictionary<string,object>;
 			if (hash == null || !hash.TryGetValue ("__type", out typeObj) || (type = typeObj as string) == null)
-				return false;
+				return value;
 
 			switch (type) {
 
@@ -78,8 +127,8 @@ namespace Xamarin.Parse {
 				throw new NotImplementedException ("Read pointer to ParseObject");
 				break;
 			}
-
-			return true;
+			
+			return value;
 		}
 
 		// Parse-specific data types

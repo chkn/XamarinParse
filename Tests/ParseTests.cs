@@ -1,80 +1,126 @@
 using System;
+using System.Diagnostics;
 using NUnit.Framework;
 
+using Cirrus;
 using Xamarin.Parse;
 
-namespace Tests {
-	[TestFixture]
-	public class ParseTests : ParseTestBase {
+[TestFixture]
+public class ParseTests : ParseTestBase {
 
-		[Test]
-		public void TestCreateObject ()
-		{
+	[Test]
+	public void TestCreateObject ()
+	{
+		try {
 			var obj = new ParseObject ("TestClass");
 			obj ["foo"] = "bar";
-			var save = obj.Save ();
-
+	
 			//FIXME: test createdate
-			AssertChanged (obj, "Id", po => Assert.AreEqual ("Ed1nuqPvcm", po.Id, "objectId"));
+			AssertChanged (obj, "ObjectId", po => Assert.AreEqual ("Ed1nuqPvcm", po.ObjectId, "objectId"));
 			AssertRequest ("POST", "/1/classes/TestClass", "{\"foo\":\"bar\"}",
 			               201, "{\"createdAt\":\"2011-08-20T02:06:57.931Z\",\"objectId\":\"Ed1nuqPvcm\"}");
-			save.Wait ();
-			EnforceAsserts ();
+	
+			obj.Save ().Wait ();
+		} finally {
+			TestComplete ();
 		}
+	}
 
-		[Test]
-		public void TestCreateUser ()
-		{
+	[Test]
+	public void TestCreateUser ()
+	{
+		try {
 			var user = new ParseUser {
 				UserName = "cooldude6",
 				Password = "p_n7!-e8"
 			};
 			user ["phone"] = "415-392-0202";
-			var save = user.Save ();
-
-			AssertChanged (user, "Id", po => Assert.AreEqual ("g7y9tkhB7O", po.Id, "objectId"));
+	
+			AssertChanged (user, "ObjectId", po => Assert.AreEqual ("g7y9tkhB7O", po.ObjectId, "objectId"));
 			AssertChanged (user, "sessionToken", po => Assert.AreEqual ("pnktnjyb996sj4p156gjtp4im", po.SessionToken, "sessionToken"));
 			AssertRequest ("POST", "/1/users", "{\"username\":\"cooldude6\",\"password\":\"p_n7!-e8\",\"phone\":\"415-392-0202\"}",
 			               201, "{\"createdAt\":\"2011-08-20T02:06:57.931Z\",\"objectId\":\"g7y9tkhB7O\",\"sessionToken\":\"pnktnjyb996sj4p156gjtp4im\"}");
-			save.Wait ();
-			EnforceAsserts ();
-		}
 
-		[Test]
-		public void TestFailedCreateObject ()
-		{
+			user.Save ().Wait ();
+		} finally {
+			TestComplete ();
+		}
+	}
+
+	[Test]
+	public void TestFailedCreateObject ()
+	{
+		try {
 			var obj = new ParseObject ("Thingy");
 			obj ["bool"] = false;
 			obj ["bl!ng"] = 10;
-			var save = obj.Save ();
-
+	
 			AssertRequest ("POST", "/1/classes/Thingy", "{\"bool\":false,\"bl!ng\":10}",
 			               400, "{\"code\":105,\"error\":\"invalid field name: bl!ng\"}");
 			try {
-				save.Wait ();
+				obj.Save ().Wait ();
 			} catch (AggregateException e) {
 				var inner = e.Flatten ().InnerExceptions;
 				Assert.AreEqual (1, inner.Count);
 				Assert.IsInstanceOfType (typeof (ParseException), inner [0]);
 				Assert.AreEqual ("invalid field name: bl!ng", inner [0].Message);
+				TestComplete ();
 				return;
 			}
+	
 			Assert.Fail ("Expected exception");
+		} finally {
+			TestComplete ();
 		}
+	}
+	
+	[Test]
+	public void TestUpdateObjects ()
+	{
+		try {
+			var looseObj = new ParseObjectLooselyTyped ();
+			var strongObj = new ParseObjectStronglyTyped ();
+			TestUpdateObjectAsync (looseObj).Wait ();
+			TestUpdateObjectAsync (strongObj).Wait ();
+		} finally {
+			TestComplete ();
+		}
+	}
 
-		[Test]
-		public void TestQueryAllInstancesOfClass ()
-		{
-			var instances = Parse.Query ("Thingy");
-			Console.WriteLine (instances);
-		}
+	Future TestUpdateObjectAsync (ParseTestObject testObject)
+	{
+		var other = new ParseObject ("Foo");
+		other ["foo"] = true;
 
-		[Test]
-		public void TestAtomicIncrement ()
-		{
-			var foo = new ParseObjectWithInt ();
-			foo.SomeInt =
-		}
+		testObject.SomeString = "string1";
+		testObject.SomeNumber = 1;
+		testObject.SomeOtherObject = other;
+		
+		AssertChanged (other, "ObjectId", po => Assert.AreEqual ("Ed1nuqPvc", po.ObjectId, "objectId"));
+		AssertRequest ("POST", "/1/classes/Foo", "{\"foo\":true}",
+		               201, "{\"createdAt\":\"2011-08-20T02:06:57.931Z\",\"objectId\":\"Ed1nuqPvc\"}");
+		
+		AssertChanged (testObject, "ObjectId", po => Assert.AreEqual ("Abb2ndvcH", po.ObjectId, "objectId"));
+		AssertRequest ("POST", "/1/classes/TestObject", "{\"SomeString\":\"string1\",\"SomeInt\":1,\"SomeOtherObject\":{\"__type\":\"Pointer\",\"className\":\"Foo\",\"objectId\":\"Ed1nuqPvc\"}}",
+		               201, "{\"createdAt\":\"2011-08-20T02:06:57.931Z\",\"objectId\":\"Abb2ndvcH\"}");
+
+		return testObject.Save ();
+	}
+	
+	[Ignore]
+	[Test]
+	public void TestQueryAllInstancesOfClass ()
+	{
+		var instances = Parse.Query ("Thingy");
+		Console.WriteLine (instances);
+	}
+	
+	[Ignore]
+	[Test]
+	public void TestAtomicIncrement ()
+	{
+	//	var foo = new ParseObjectWithInt ();
+	//	foo.SomeInt =
 	}
 }
 
