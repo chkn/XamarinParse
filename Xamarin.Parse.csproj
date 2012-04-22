@@ -63,6 +63,7 @@
     <Compile Include="Counter.cs" />
     <Compile Include="IOrderedDictionary.cs" />
     <Compile Include="OrderedDictionary.cs" />
+    <Compile Include="ParseGeoPoint.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Json\" />
