@@ -16,7 +16,16 @@ namespace Xamarin.Parse {
 		public ParseKeyAttribute () { }
 		public ParseKeyAttribute (string key) { this.Key = key; }
 	}
-	
+
+	// used to annotate special parse types
+	[AttributeUsage (AttributeTargets.Class)]
+	public class ParseTypeAttribute : Attribute {
+		public string Name { get; set; }
+		public bool Inline { get; set; }
+		public ParseTypeAttribute (string name) { this.Name = name; }
+		public ParseTypeAttribute () { }
+	}
+
 	// Subclassing:
 	//    If you want to add any C# properties that are saved to Parse, either:
 	//      a. use the this[] indexer syntax for get/set OR
@@ -28,7 +37,7 @@ namespace Xamarin.Parse {
 		
 		public string ObjectId {
 			get { return (string) this ["objectId"]; }
-			internal set {
+			internal protected set {
 				lock (property_lock) {
 					properties ["objectId"] = value;
 					ClassPath += "/" + value;
@@ -209,7 +218,8 @@ namespace Xamarin.Parse {
 				return properties.TryGetValue (key, out value);
 		}
 
-		public Future Save () {
+		public Future Save ()
+		{
 			if (ObjectId == null)
 				return CallAndApply (Parse.Verb.POST); // create
 			else
@@ -221,20 +231,28 @@ namespace Xamarin.Parse {
 			return CallAndApply (Parse.Verb.DELETE, false);
 		}
 
-		Future CallAndApply (Parse.Verb verb, bool sendData = true)
+		public Future Refresh ()
+		{
+			return CallAndApply (Parse.Verb.GET, false, true);
+		}
+
+		Future CallAndApply (Parse.Verb verb, bool sendData = true, bool sendId = false)
 		{
 			var data = sendData? this.ToJson ().Wait () : null;
-			var response = Parse.ApiCall (verb, ClassPath, data).Wait ();
+			if (string.IsNullOrEmpty (data) || data == "{}")
+				return Future.Fulfilled;
+
+			var response = Parse.ApiCall (verb, ClassPath + (sendId? "/" + ObjectId : ""), data).Wait ();
 			Parse.ThrowIfNecessary (response);
 
 			var status = (int)response.StatusCode;
 			if (status != 204 && status != 205) {
-				var dict = JsonReader.Read<Dictionary<string,object>> (response.GetResponseStream ());
-				Console.WriteLine ("Got dict: {0}", dict);
+				var dict = JsonReader.Read<ParseObject> (response.GetResponseStream (), GetType ()).Wait ();
 				ParseObjectAdapter.Instance.Apply (this, dict);
 			}
 			response.Close ();
-			
+
+			updated_properties.Clear ();
 			return Future.Fulfilled;
 		}
 

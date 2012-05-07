@@ -33,11 +33,18 @@ namespace Xamarin.Parse {
 		}
 
 		public ParseUser ()
-			: base (new[] { USERS_PATH })
+			: this (new[] { USERS_PATH })
+		{
+		}
+
+		protected ParseUser (string [] path)
+			: base (path)
 		{
 			this.pointerClassName = "_User";
 		}
+
 		
+
 		public static Future<TUser> LogIn<TUser> (string userName, string password)
 			where TUser : ParseUser
 		{

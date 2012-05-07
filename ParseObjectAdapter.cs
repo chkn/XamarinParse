@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Globalization;
@@ -21,9 +22,15 @@ namespace Xamarin.Parse {
 		{
 			PropertyInfo prop;
 			var po = (ParseObject)data;
-			if (po.property_keys != null && po.property_keys.TryGetValue (key, out prop))
+
+			if (po.property_keys != null && po.property_keys.TryGetValue (key, out prop)) {
+				var type = prop.PropertyType;
+				var attr = type.GetCustomAttributes (typeof (ParseTypeAttribute), false);
+				if (attr != null && attr.Length != 0)
+					return typeof (Dictionary<string,object>);
+
 				return prop.PropertyType;
-			
+			}
 			return base.GetValueType (data, key);
 		}
 		
@@ -57,23 +64,60 @@ namespace Xamarin.Parse {
 
 					var value = po.properties [key];
 					if (value is DateTime) {
-						throw new NotImplementedException ("Write DateTime");
-					} else if (value is byte []) {
-						throw new NotImplementedException ("Write byte [] data");
-					} else if (value is ParseObject) {
-						var obj = (ParseObject)value;
-						obj.Save ().Wait ();
 						writer.StartObject ();
 						writer.WriteKey ("__type");
-						writer.WriteString ("Pointer");
-						writer.WriteKey ("className");
-						writer.WriteString (obj.pointerClassName);
-						writer.WriteKey ("objectId");
-						writer.WriteString (obj.ObjectId);
+						writer.WriteString ("Date");
+						writer.WriteKey ("iso");
+						writer.WriteString (ToString ((DateTime)value));
 						writer.EndObject ();
-					} else {
-						writer.WriteValue (value).Wait ();
+						continue;
+
+					} else if (value is byte []) {
+						throw new NotImplementedException ("Write byte [] data");
+
+					} else if (value is ParseObject) {
+						var obj = (ParseObject)value;
+						ParseTypeAttribute pta = null;
+						if ((pta = (ParseTypeAttribute)obj.GetType ().GetCustomAttributes (typeof (ParseTypeAttribute), true).SingleOrDefault ()) == null
+						    || !pta.Inline)
+						{
+							obj.Save ().Wait ();
+							writer.StartObject ();
+							writer.WriteKey ("__type");
+							writer.WriteString ("Pointer");
+							writer.WriteKey ("className");
+							writer.WriteString (obj.pointerClassName);
+							writer.WriteKey ("objectId");
+							writer.WriteString (obj.ObjectId);
+							writer.EndObject ();
+							continue;
+						}
+
+					} else if (value is ParseFile) {
+						var file = (ParseFile)value;
+						file.Save ().Wait ();
+						writer.StartObject ();
+						writer.WriteKey ("__type");
+						writer.WriteString ("File");
+						writer.WriteKey ("name");
+						writer.WriteString (file.RemoteName);
+						writer.EndObject ();
+						continue;
+
+					} else if (value is ParseGeoPoint) {
+						var geo = (ParseGeoPoint)value;
+						writer.StartObject ();
+						writer.WriteKey ("__type");
+						writer.WriteString ("GeoPoint");
+						writer.WriteKey ("latitude");
+						writer.WriteValue (geo.Latitude);
+						writer.WriteKey ("longitude");
+						writer.WriteValue (geo.Longitude);
+						writer.EndObject ();
+						continue;
 					}
+
+					writer.WriteValue (value).Wait ();
 				}
 
 				writer.EndObject ();			
@@ -95,7 +139,7 @@ namespace Xamarin.Parse {
 			// handle the special data types
 			var parseObject = (ParseObject)data;
 			var parseValue = HandleParseType (data, key, value).Wait ();
-			base.SetKey (data, key, parseValue);
+			base.SetKey (data, key, parseValue).Wait ();
 
 			PropertyInfo prop;
 			if (parseObject.property_keys != null && parseObject.property_keys.TryGetValue (key, out prop))
@@ -116,7 +160,7 @@ namespace Xamarin.Parse {
 			switch (type) {
 
 			case "Date":
-				throw new NotImplementedException ("Read DateTime");
+				return ParseDateTime ((string)hash ["iso"]);
 				break;
 
 			case "Bytes":
@@ -125,6 +169,10 @@ namespace Xamarin.Parse {
 
 			case "Pointer":
 				throw new NotImplementedException ("Read pointer to ParseObject");
+				break;
+
+			case "GeoPoint":
+				return new ParseGeoPoint ((double)hash ["latitude"], (double)hash ["longitude"]);
 				break;
 			}
 			
@@ -138,6 +186,11 @@ namespace Xamarin.Parse {
 		static DateTime ParseDateTime (string value)
 		{
 			return DateTime.ParseExact (value, DATETIME_FORMAT, CultureInfo.InvariantCulture);
+		}
+
+		static string ToString (DateTime value)
+		{
+			return value.ToString (DATETIME_FORMAT);
 		}
 
 		// Helper to update fields in an existing ParseObject
