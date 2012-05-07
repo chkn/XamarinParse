@@ -22,12 +22,14 @@ namespace Xamarin.Parse.Json {
 #if MONOTOUCH
 			List<KeyValuePair<Type,JsonAdapter>> foo = null;
 #endif
-			Register (typeof (IList), new ListAdapter());
 			Register (typeof (IDictionary<string,object>), new DictionaryAdapter());
+			Register (typeof (ParseObject), ParseObjectAdapter.Instance);
 		}
 
 		public static void Register (Type type, JsonAdapter adapter)
 		{
+			if (adapter == null)
+				throw new ArgumentNullException ("adapter");
 			lock (adapters)
 				adapters.Insert (0, type, adapter);
 		}
@@ -45,6 +47,9 @@ namespace Xamarin.Parse.Json {
 				if (pair.Key.IsAssignableFrom (type))
 					return pair.Value;
 			}
+
+			if (typeof (IList).IsAssignableFrom (type))
+				return new ListAdapter (type.HasElementType? type.GetElementType () : null);
 
 			adapter = PocoAdapter.Instance;
 			Register (type, adapter);
@@ -81,8 +86,11 @@ namespace Xamarin.Parse.Json {
 
 	public class ListAdapter : JsonAdapter {
 
-		protected internal ListAdapter ()
+		Type elementType;
+
+		protected internal ListAdapter (Type elementType)
 		{
+			this.elementType = elementType;
 		}
 
 		public override Future SetKey (object data, string key, object value)
@@ -102,6 +110,9 @@ namespace Xamarin.Parse.Json {
 
 		public override Type GetValueType (object data, string key)
 		{
+			if (elementType != null)
+				return elementType;
+
 			var type = data.GetType ();
 
 			// For arrays
@@ -112,8 +123,8 @@ namespace Xamarin.Parse.Json {
 			else if (type.IsGenericType)
 				type = type.GetGenericArguments () [0];
 
-			// FIXME: This will rarely work if neither of the above conditions are met
-			return type;
+			// FIXME: This is a bit shaky?
+			return DefaultType;
 		}
 
 		public override Future WriteJson (object data, JsonWriter writer)

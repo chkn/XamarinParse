@@ -96,6 +96,7 @@ namespace Xamarin.Parse.Json {
 				case '\t' : buffer.Append ("\\t"); break;
 				case '\v' : buffer.Append ("\\v"); break;
 				case '\\' : buffer.Append ("\\\\"); break;
+				case '"'  : buffer.Append ("\\\""); break;
 				default   : buffer.Append (next); break;
 				}
 			}

@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 
+using Cirrus;
+
 namespace Xamarin.Parse.Json {
 
 	public sealed class JsonReader {
@@ -13,41 +15,61 @@ namespace Xamarin.Parse.Json {
 		bool eof;
 		uint row, col;
 
-		public static T Read<T> (string fileName)
+		public static Future<T> Read<T> (string fileName)
 		{
 			return Read<T> (new FileStream (fileName, FileMode.Open));
 		}
 
-		public static T Read<T> (Stream stream)
+		public static Future<T> Read<T> (Stream stream)
 		{
-			return JsonReader.Parse<T> (new StreamReader (stream));
+			return Read<T> (stream, typeof (T));
+		}
+		public static Future<T> Read<T> (Stream stream, Type type)
+		{
+			return JsonReader.Parse<T> (new StreamReader (stream), type);
 		}
 		
-		public static T ReadKey<T> (Stream stream, string key)
+		public static Future<T> ReadKey<T> (Stream stream, string key)
 		{
 			return JsonReader.ParseKey<T> (new StreamReader (stream), key);
 		}
 
-		public static T Parse<T> (string json)
+		public static Future<T> Parse<T> (string json)
 		{
 			return JsonReader.Parse<T> (new StringReader (json));
 		}
 		
-		public static T ParseKey<T> (string json, string key)
+		public static Future<T> ParseKey<T> (string json, string key)
 		{
 			return JsonReader.ParseKey<T> (new StringReader (json), key);
 		}
 
-		public static T Parse<T> (TextReader json)
+		public static Future<T> Parse<T> (TextReader json)
 		{
-			var jso = new JsonReader (json);
-			return (T)Convert.ChangeType (jso.Parse (typeof (T)), typeof (T));
+			return Parse<T> (json, typeof (T));
 		}
-		
-		public static T ParseKey<T> (TextReader json, string key)
+
+		public static Future<T> Parse<T> (TextReader json, Type type)
 		{
 			var jso = new JsonReader (json);
-			return (T)Convert.ChangeType (jso.ParseObjectForKey (typeof (T), key), typeof (T));
+			return As<T> (jso.Parse (type).Wait ());
+		}
+
+		public static Future<T> ParseKey<T> (TextReader json, string key)
+		{
+			var jso = new JsonReader (json);
+			return As<T> (jso.ParseObjectForKey (typeof (T), key).Wait ());
+		}
+
+		//lil helper
+		static T As<T> (object obj)
+		{
+			var srcType = obj.GetType ();
+			var destType = typeof (T);
+			if (destType.IsAssignableFrom (srcType))
+				return (T)obj;
+
+			return (T)Convert.ChangeType (obj, destType);
 		}
 
 		private JsonReader (TextReader input)
@@ -55,7 +77,7 @@ namespace Xamarin.Parse.Json {
 			this.input = input;
 		}
 
-		object Parse (Type typeHint)
+		Future<object> Parse (Type typeHint)
 		{
 			var la = Peek ();
 			
@@ -87,7 +109,7 @@ namespace Xamarin.Parse.Json {
 			}
 			if (la == 'n') {
 				Consume ("null");
-				return null;
+				return new Future<object> { Value = null };
 			}
 			
 			Err ("unexpected '{0}'", la);
@@ -195,7 +217,7 @@ namespace Xamarin.Parse.Json {
 			return result;
 		}
 		
-		object ParseObject (Type typeHint)
+		Future<object> ParseObject (Type typeHint)
 		{
 			object result = null;
 			var adapter = JsonAdapter.ForType (typeHint);
@@ -213,9 +235,9 @@ namespace Xamarin.Parse.Json {
 				var key = ParseString ();
 				Consume (':');
 
-				var value = Parse (adapter == null ? null : adapter.GetValueType (result, key));
+				var value = Parse (adapter == null ? null : adapter.GetValueType (result, key)).Wait ();
 				if (adapter != null)
-					adapter.SetKey (result, key, value);
+					adapter.SetKey (result, key, value).Wait ();
 
 				next = Peek ();
 				if (next != '}')
@@ -226,7 +248,7 @@ namespace Xamarin.Parse.Json {
 			return result;
 		}
 
-		object ParseObjectForKey (Type valueHint, string searchKey)
+		Future<object> ParseObjectForKey (Type valueHint, string searchKey)
 		{
 			var next = Peek ();
 			if (next != '{')
@@ -241,9 +263,9 @@ namespace Xamarin.Parse.Json {
 				Consume (':');
 				
 				if (key == searchKey)
-					return Parse (valueHint);
+					return Parse (valueHint).Wait ();
 				else
-					Parse ((Type)null);
+					Parse ((Type)null).Wait ();
 
 					next = Peek ();
 				if (next != '}')
@@ -254,7 +276,7 @@ namespace Xamarin.Parse.Json {
 			return null;
 		}
 
-		object ParseArray (Type typeHint)
+		Future<object> ParseArray (Type typeHint)
 		{
 			object result = null;
 			var adapter = JsonAdapter.ForType (typeHint);
@@ -271,9 +293,9 @@ namespace Xamarin.Parse.Json {
 			next = Peek ();
 			while (next != ']') {
 			
-				var value = Parse (adapter == null ? null : adapter.GetValueType (result, i.ToString ()));
+				var value = Parse (adapter == null ? null : adapter.GetValueType (result, i.ToString ())).Wait ();
 				if (adapter != null)
-					adapter.SetKey (result, i.ToString (), value);
+					adapter.SetKey (result, i.ToString (), value).Wait ();
 
 				i++;
 				next = Peek ();
@@ -284,7 +306,7 @@ namespace Xamarin.Parse.Json {
 
 			if (typeHint != null && typeHint.IsArray) {
 				typeHint = typeHint.GetElementType ();
-				var list = (IList)result;
+				var list = (ArrayList)result;
 				var array = Array.CreateInstance (typeHint, i);
 				for (var j = 0; j < i; j++)
 					array.SetValue (Convert.ChangeType (list [j], typeHint), j);
@@ -377,7 +399,7 @@ namespace Xamarin.Parse.Json {
 			if (typeHint == null)
 				return null;
 			if (typeHint.IsArray)
-				typeHint = typeof(ArrayList);
+				typeHint = typeof (ArrayList);
 			if (typeHint.IsGenericType && typeHint.GetGenericTypeDefinition () == typeof(Nullable<>))
 				return typeHint.GetGenericArguments () [0];
 			return typeHint;
@@ -402,7 +424,8 @@ namespace Xamarin.Parse.Json {
 
 		void Err (string message, params object [] args)
 		{
-			Consume ();
+			// Do not try to recover with Consume() as that can cause a stack overflow if we are at EOF
+			//Consume ();
 			throw new JsonParseException (row, col - 1, string.Format (message, args));
 		}
 		

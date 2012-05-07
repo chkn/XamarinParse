@@ -244,11 +244,6 @@ namespace Xamarin.Parse {
 			if (propChanged != null)
 				propChanged (this, new PropertyChangedEventArgs (propName));
 		}
-
-		static ParseObject ()
-		{
-			JsonAdapter.Register (typeof (ParseObject), ParseObjectAdapter.Instance);
-		}
 	}
 }
 
