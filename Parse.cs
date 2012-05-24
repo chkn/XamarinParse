@@ -54,6 +54,7 @@ namespace Xamarin.Parse {
 		}
 
 		public static Future<TModel> Get<TModel> (string className, string id)
+			where TModel : ParseObject
 		{
 			return Parse.ApiCall<TModel> (Verb.GET, ParseObject.CLASSES_PATH + "/" + className + "/" + id);
 		}
@@ -125,11 +126,18 @@ namespace Xamarin.Parse {
 		}
 
 		public static Future<TResult> ApiCall<TResult> (Verb verb, string path, string data = null)
+		//	where TResult : ParseObject
 		{
 			var response = ApiCall (verb, path, data).Wait ();
 			ThrowIfNecessary (response);
+
+			TResult result;
 			using (var stream = response.GetResponseStream ())
-				return JsonReader.Read<TResult> (stream).Wait ();
+				result = JsonReader.Read<TResult> (stream).Wait ();
+			
+			//FIXME: investigate cilc bug that makes this fail- generic constraints on async methods maybe?
+		//	result.updated_properties.Clear ();
+			return result;
 		}
 
 		internal static void ThrowIfNecessary (HttpWebResponse response)

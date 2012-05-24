@@ -8,6 +8,7 @@ using Xamarin.Parse.Json;
 
 namespace Xamarin.Parse {
 
+	[ParseType ("File")]
 	public class ParseFile {
 
 		public string RemoteName { get; internal set; }
@@ -15,6 +16,10 @@ namespace Xamarin.Parse {
 
 		public string LocalName { get; protected set; }
 		public string ContentType { get; protected set; }
+
+		internal ParseFile ()
+		{
+		}
 
 		public ParseFile (string fileName, string contentType)
 		{

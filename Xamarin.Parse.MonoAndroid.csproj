@@ -5,26 +5,28 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>10.0.0</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{A6B3A9AB-57F7-4FBF-82D9-50C2DC20E1D7}</ProjectGuid>
-    <ProjectTypeGuids>{6BC8ED88-2882-458C-8E55-DFD12B67127B};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <ProjectGuid>{8C71F024-5A72-4EA6-9AD8-4227689AC9BF}</ProjectGuid>
+    <ProjectTypeGuids>{EFBA0AD7-5A72-4C68-AF49-83D382785DCF};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
     <RootNamespace>Xamarin.Parse</RootNamespace>
-    <AssemblyName>Xamarin.Parse.MT</AssemblyName>
+    <AssemblyName>Xamarin.Parse.MfA</AssemblyName>
+    <TargetFrameworkVersion>v2.1</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Debug</OutputPath>
-    <DefineConstants>DEBUG;MONOTOUCH</DefineConstants>
+    <DefineConstants>DEBUG;ANDROID</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
     <CustomCommands>
       <CustomCommands>
-        <Command type="AfterBuild" command="mono external/cilc.exe --core=external/Cirrus.Core.MT.dll -g ${TargetFile}" workingdir="${SolutionDir}" />
+        <Command type="AfterBuild" command="mono external/cilc.exe --core=external/Cirrus.Core.MfA.dll -g ${TargetFile}" workingdir="${SolutionDir}" />
       </CustomCommands>
     </CustomCommands>
+    <AndroidLinkMode>None</AndroidLinkMode>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>
@@ -35,20 +37,21 @@
     <ConsolePause>false</ConsolePause>
     <CustomCommands>
       <CustomCommands>
-        <Command type="AfterBuild" command="mono external/cilc.exe --core=external/Cirrus.Core.MT.dll ${TargetFile}" workingdir="${SolutionDir}" />
+        <Command type="AfterBuild" command="mono external/cilc.exe --core=external/Cirrus.Core.MfA.dll ${TargetFile}" workingdir="${SolutionDir}" />
       </CustomCommands>
     </CustomCommands>
     <DefineConstants>MONOTOUCH</DefineConstants>
+    <AndroidLinkMode>SdkOnly</AndroidLinkMode>
+    <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Web.Services" />
-    <Reference Include="Cirrus.Core.MT">
-      <HintPath>external\Cirrus.Core.MT.dll</HintPath>
+    <Reference Include="Cirrus.Core.MfA">
+      <HintPath>external\Cirrus.Core.MfA.dll</HintPath>
     </Reference>
   </ItemGroup>
-  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
     <Compile Include="Parse.cs" />
     <Compile Include="Json\JsonReader.cs" />
@@ -71,4 +74,5 @@
   <ItemGroup>
     <Folder Include="Json\" />
   </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath)\Novell\Novell.MonoDroid.CSharp.targets" />
 </Project>

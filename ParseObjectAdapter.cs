@@ -171,6 +171,13 @@ namespace Xamarin.Parse {
 				throw new NotImplementedException ("Read pointer to ParseObject");
 				break;
 
+			case "File":
+				return new ParseFile {
+					RemoteName = (string)hash ["name"],
+					RemoteURL = (string)hash ["url"]
+				};
+				break;
+
 			case "GeoPoint":
 				return new ParseGeoPoint ((double)hash ["latitude"], (double)hash ["longitude"]);
 				break;

@@ -26,12 +26,12 @@ namespace Xamarin.Parse.Json {
 		}
 		public static Future<T> Read<T> (Stream stream, Type type)
 		{
-			return JsonReader.Parse<T> (new StreamReader (stream), type);
+			return JsonReader.Parse<T> (new StreamReader (new BufferedStream (stream)), type);
 		}
 		
 		public static Future<T> ReadKey<T> (Stream stream, string key)
 		{
-			return JsonReader.ParseKey<T> (new StreamReader (stream), key);
+			return JsonReader.ParseKey<T> (new StreamReader (new BufferedStream (stream)), key);
 		}
 
 		public static Future<T> Parse<T> (string json)
