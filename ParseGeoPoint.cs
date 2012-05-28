@@ -28,15 +28,15 @@ namespace Xamarin.Parse {
 			}
 		}
 
-		public double KilometersFrom (ParseGeoPoint other)
+		public double MetersFrom (ParseGeoPoint other)
 		{
 			if (other == null)
 				throw new ArgumentNullException ("other");
 
-			return KilometerDistance (latitude, longitude, other.latitude, other.longitude);
+			return MeterDistance (latitude, longitude, other.latitude, other.longitude);
 		}
 
-		public static double KilometerDistance (double lat1, double lon1, double lat2, double lon2)
+		public static double MeterDistance (double lat1, double lon1, double lat2, double lon2)
 		{
 			var R = 6371; // km
 			var dLat = (lat2 - lat1) * Math.PI / 180;

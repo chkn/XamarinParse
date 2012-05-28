@@ -14,7 +14,7 @@ namespace Xamarin.Parse {
 	class ParseObjectAdapter : DictionaryAdapter {
 		public static readonly ParseObjectAdapter Instance = new ParseObjectAdapter ();
 
-		private ParseObjectAdapter ()
+		internal ParseObjectAdapter ()
 		{
 		}
 

@@ -21,11 +21,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
-    <CustomCommands>
-      <CustomCommands>
-        <Command type="AfterBuild" command="mono external/cilc.exe --core=external/Cirrus.Core.MfA.dll -g ${TargetFile}" workingdir="${SolutionDir}" />
-      </CustomCommands>
-    </CustomCommands>
     <AndroidLinkMode>None</AndroidLinkMode>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
@@ -75,4 +70,5 @@
     <Folder Include="Json\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Novell\Novell.MonoDroid.CSharp.targets" />
+  <Import Project="$(ProjectDir)\Postcompile.targets" />
 </Project>

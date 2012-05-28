@@ -23,7 +23,7 @@ namespace Xamarin.Parse.Json {
 			List<KeyValuePair<Type,JsonAdapter>> foo = null;
 #endif
 			Register (typeof (IDictionary<string,object>), new DictionaryAdapter());
-			Register (typeof (ParseObject), ParseObjectAdapter.Instance);
+			Register (typeof (ParseObject), new ParseObjectAdapter ());
 		}
 
 		public static void Register (Type type, JsonAdapter adapter)
