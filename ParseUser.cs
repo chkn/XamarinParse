@@ -4,6 +4,8 @@ using System.Web;
 using Cirrus;
 
 namespace Xamarin.Parse {
+
+	[Serializable]
 	public class ParseUser : ParseObject {
 
 		// the API path to user objects
@@ -32,6 +34,13 @@ namespace Xamarin.Parse {
 			get { return (string) this ["sessionToken"]; }
 		}
 
+		public override Future Save ()
+		{
+			base.Save ().Wait ();
+			Parse.CurrentSessionToken = SessionToken;
+			return Future.Fulfilled;
+		}
+
 		public ParseUser ()
 			: this (new[] { USERS_PATH })
 		{
@@ -43,15 +52,30 @@ namespace Xamarin.Parse {
 			this.pointerClassName = "_User";
 		}
 
-		
-
 		public static Future<TUser> LogIn<TUser> (string userName, string password)
 			where TUser : ParseUser
 		{
 			var data = string.Format ("username={0}&password={1}", HttpUtility.UrlEncode (userName), HttpUtility.UrlEncode (password));
-			return Parse.ApiCall<TUser> (Parse.Verb.GET, "login", data);
+			var user = Parse.ApiCall<TUser> (Parse.Verb.GET, "login", data).Wait ();
+			Parse.CurrentSessionToken = user.SessionToken;
+			user.ResetHasLocalModifications ();
+			return user;
 		}
-			
+
+		public static Future LogOut ()
+		{
+			//FIXME: need to do anything else here?
+			Parse.CurrentSessionToken = null;
+			return Future.Fulfilled;
+		}
+
+		public static Future ResetPassword (string email)
+		{
+			var data = string.Format ("{{\"email\":\"{0}\"}}", email);
+			using (var resp = Parse.ApiCall (Parse.Verb.POST, "requestPasswordReset", data).Wait ())
+				resp.Close ();
+			return Future.Fulfilled;
+		}
 	}
 }
 

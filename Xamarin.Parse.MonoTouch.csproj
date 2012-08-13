@@ -22,7 +22,7 @@
     <ConsolePause>false</ConsolePause>
     <CustomCommands>
       <CustomCommands>
-        <Command type="AfterBuild" command="mono external/cilc.exe --core=external/Cirrus.Core.MT.dll -g ${TargetFile}" workingdir="${SolutionDir}" />
+        <Command type="AfterBuild" command="mono external/cilc.exe -g --core=external/Cirrus.Core.MT.dll ${TargetFile}" workingdir="${SolutionDir}" />
       </CustomCommands>
     </CustomCommands>
   </PropertyGroup>

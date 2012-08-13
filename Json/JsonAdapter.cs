@@ -49,7 +49,11 @@ namespace Xamarin.Parse.Json {
 			}
 
 			if (typeof (IList).IsAssignableFrom (type))
-				return new ListAdapter (type.HasElementType? type.GetElementType () : null);
+				return new ListAdapter (
+					type.HasElementType? type.GetElementType () :
+					type.IsGenericType ? type.GetGenericArguments () [0] :
+					null
+				);
 
 			adapter = PocoAdapter.Instance;
 			Register (type, adapter);

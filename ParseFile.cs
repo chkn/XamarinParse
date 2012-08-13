@@ -8,7 +8,7 @@ using Xamarin.Parse.Json;
 
 namespace Xamarin.Parse {
 
-	[ParseType ("File")]
+	[Serializable, ParseType ("File")]
 	public class ParseFile {
 
 		public string RemoteName { get; internal set; }
@@ -32,14 +32,20 @@ namespace Xamarin.Parse {
 			if (RemoteName != null)
 				return Future.Fulfilled;
 
-			var req = Parse.Request (Parse.Verb.POST, "files/" + Path.GetFileName (LocalName)).Wait ();
+			var reqFuture = Parse.Request (Parse.Verb.POST, "files/" + Path.GetFileName (LocalName));
+			reqFuture.WithTimeout (Parse.timeout_msec).Wait ();
+			if (reqFuture.Status != FutureStatus.Fulfilled)
+				throw new TimeoutException (Parse.RequestFailMessage);
+			var req = reqFuture.Value;
 			req.ContentType = ContentType;
 
 			using (var fileStream = new FileStream (LocalName, FileMode.Open, FileAccess.Read)) {
-				var reqStreamFuture =  Future<Stream>.FromApm (req.BeginGetRequestStream, req.EndGetRequestStream);
+				req.ContentLength = fileStream.Length;
+
+				var reqStreamFuture = Future<Stream>.FromApm (req.BeginGetRequestStream, req.EndGetRequestStream);
 				reqStreamFuture.WithTimeout (Parse.timeout_msec).Wait ();
 				if (reqStreamFuture.Status != FutureStatus.Fulfilled)
-					throw new TimeoutException ("Connection to server timed out");
+					throw new TimeoutException (Parse.RequestFailMessage);
 
 				using (var reqStream = reqStreamFuture.Value) {
 					fileStream.CopyTo (reqStream);
@@ -48,12 +54,12 @@ namespace Xamarin.Parse {
 			}
 
 			try {
-				var respFuture = Future<HttpWebResponse>.FromApm (req.BeginGetResponse, iar => (HttpWebResponse)req.EndGetResponse (iar));
+				var respFuture = Future<WebResponse>.FromApm (req.BeginGetResponse, req.EndGetResponse);
 				respFuture.WithTimeout (Parse.timeout_msec).Wait ();
 				if (respFuture.Status != FutureStatus.Fulfilled)
-					throw new TimeoutException ("Did not receive response from server");
+					throw new TimeoutException (Parse.RequestFailMessage);
 
-				var resp = respFuture.Value;
+				var resp = (HttpWebResponse)respFuture.Value;
 				Parse.ThrowIfNecessary (resp);
 
 				var dict = JsonReader.Read<Dictionary<string,object>> (resp.GetResponseStream ()).Wait ();
@@ -63,11 +69,11 @@ namespace Xamarin.Parse {
 			} catch (AggregateException aex) {
 				var wex = aex.InnerExceptions [0] as WebException;
 				if (wex != null)
-					Parse.ThrowIfNecessary (wex.Response as HttpWebResponse);
+					Parse.ThrowIfNecessary (wex).Wait ();
 				throw;
 
 			} catch (WebException wex) {
-				Parse.ThrowIfNecessary (wex.Response as HttpWebResponse);
+				Parse.ThrowIfNecessary (wex).Wait ();
 				throw;
 			}
 			return Future.Fulfilled;

@@ -60,6 +60,9 @@ namespace Xamarin.Parse {
 				writer.StartObject ();
 		
 				foreach (var key in po.updated_properties) {
+					if (key == null)
+						continue; //FIXME: this really should never happen
+
 					writer.WriteKey (key);
 
 					var value = po.properties [key];
@@ -133,7 +136,7 @@ namespace Xamarin.Parse {
 			// handle the special keys
 			case "objectId" : ((ParseObject)data).ObjectId = (string)value; return Future.Fulfilled;
 			case "createdAt": ((ParseObject)data).CreateDate = ParseDateTime ((string)value); return Future.Fulfilled;
-			case "updatedAt": ((ParseObject)data).ModifiedDate = ParseDateTime ((string)value); return Future.Fulfilled;
+			case "updatedAt": ((ParseObject)data).LastUpdate = ParseDateTime ((string)value); return Future.Fulfilled;
 			}
 
 			// handle the special data types
@@ -141,9 +144,10 @@ namespace Xamarin.Parse {
 			var parseValue = HandleParseType (data, key, value).Wait ();
 			base.SetKey (data, key, parseValue).Wait ();
 
-			PropertyInfo prop;
-			if (parseObject.property_keys != null && parseObject.property_keys.TryGetValue (key, out prop))
-				prop.SetValue (parseObject, parseValue, null);
+			//I don't think we need this any more as ParseObject's 'this' property does this
+			//PropertyInfo prop;
+			//if (parseObject.property_keys != null && parseObject.property_keys.TryGetValue (key, out prop))
+			//	prop.SetValue (parseObject, parseValue, null);
 
 			return Future.Fulfilled;
 		}
@@ -202,10 +206,13 @@ namespace Xamarin.Parse {
 
 		// Helper to update fields in an existing ParseObject
 
-		public void Apply (ParseObject po, IDictionary<string,object> updates)
+		public Future Apply (ParseObject po, IDictionary<string,object> updates)
 		{
+			//FIXME: CompositeFuture is broken
+			//return Future.ForAll (updates.Select (update => SetKey (po, update.Key, update.Value)).ToArray ());
 			foreach (var update in updates)
-				SetKey (po, update.Key, update.Value);
+				SetKey (po, update.Key, update.Value).Wait ();
+			return Future.Fulfilled;
 		}
 	}
 }

@@ -211,8 +211,12 @@ namespace Xamarin.Parse.Json {
 			var result = double.Parse (sb.ToString ());
 			var resultType = GetWorkingType (typeHint);
 
-			if (resultType != null && IsNumeric (resultType))
-				return Convert.ChangeType (result, resultType);
+			if (resultType != null) {
+				if (resultType.IsEnum)
+					return Enum.ToObject (resultType, Convert.ChangeType (result, Enum.GetUnderlyingType (resultType)));
+				if (IsNumeric (resultType))
+					return Convert.ChangeType (result, resultType);
+			}
 
 			return result;
 		}

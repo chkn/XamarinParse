@@ -30,6 +30,7 @@ namespace Xamarin.Parse {
 	//    If you want to add any C# properties that are saved to Parse, either:
 	//      a. use the this[] indexer syntax for get/set OR
 	//      b. annotate your auto-generated properties with the ParseKeyAttribute
+	[Serializable]
 	public class ParseObject : IDictionary<string,object>, INotifyPropertyChanged {
 
 		// the API path to normal parse objects
@@ -53,15 +54,24 @@ namespace Xamarin.Parse {
 				FirePropertyChanged ("CreateDate");
 			}
 		}
-		public DateTime ModifiedDate {
+		public DateTime LastUpdate {
 			get { return (DateTime) this ["updatedAt"]; }
 			internal set {
 				lock (property_lock)
 					properties ["updatedAt"] = value;
-				FirePropertyChanged ("ModifiedDate");
+				FirePropertyChanged ("LastUpdate");
 			}
 		}
 
+		public bool HasLocalModifications {
+			get { return updated_properties.Any (); }
+		}
+		public void ResetHasLocalModifications ()
+		{
+			updated_properties.Clear ();
+		}
+
+		[field:NonSerialized]
 		public event PropertyChangedEventHandler PropertyChanged;
 		public string ClassPath { get; private set; }
 
@@ -180,7 +190,7 @@ namespace Xamarin.Parse {
 						
 						PropertyInfo prop;
 						if (property_keys != null && property_keys.TryGetValue (key, out prop))
-							prop.SetValue (this, value, null);
+							prop.SetValue (this, Convert.ChangeType (value, prop.PropertyType), null);
 						FirePropertyChanged (key);
 					}
 				}
@@ -218,7 +228,7 @@ namespace Xamarin.Parse {
 				return properties.TryGetValue (key, out value);
 		}
 
-		public Future Save ()
+		public virtual Future Save ()
 		{
 			if (ObjectId == null)
 				return CallAndApply (Parse.Verb.POST); // create
@@ -239,20 +249,22 @@ namespace Xamarin.Parse {
 		Future CallAndApply (Parse.Verb verb, bool sendData = true, bool sendId = false)
 		{
 			var data = sendData? this.ToJson ().Wait () : null;
-			if (string.IsNullOrEmpty (data) || data == "{}")
+			if (sendData && (string.IsNullOrEmpty (data) || data == "{}"))
 				return Future.Fulfilled;
 
 			var response = Parse.ApiCall (verb, ClassPath + (sendId? "/" + ObjectId : ""), data).Wait ();
-			Parse.ThrowIfNecessary (response);
-
-			var status = (int)response.StatusCode;
-			if (status != 204 && status != 205) {
-				var dict = JsonReader.Read<ParseObject> (response.GetResponseStream (), GetType ()).Wait ();
-				ParseObjectAdapter.Instance.Apply (this, dict);
+			try {
+				Parse.ThrowIfNecessary (response);
+				var status = (int)response.StatusCode;
+				if (status != 204 && status != 205) {
+					var dict = Parse.ReadResponse<ParseObject> (response, GetType ()).Wait ();
+					ParseObjectAdapter.Instance.Apply (this, dict).Wait ();
+				}
+			} finally {
+				response.Close ();
 			}
-			response.Close ();
 
-			updated_properties.Clear ();
+			ResetHasLocalModifications ();
 			return Future.Fulfilled;
 		}
 
